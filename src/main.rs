@@ -2,10 +2,14 @@ use anyhow::Result;
 use clap::Parser;
 use std::path::PathBuf;
 
+mod contents_json;
 mod icon_gen;
 
 #[derive(Debug, Parser)]
-#[clap(name = "icon-gen", about = "Generate various icons for all major platforms")]
+#[clap(
+    name = "icon-gen",
+    about = "Generate various icons for all major platforms"
+)]
 struct Args {
     /// Path to the source icon (squared PNG or SVG file with transparency).
     #[clap(value_name = "INPUT")]
@@ -62,6 +66,6 @@ struct Args {
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    
+
     icon_gen::generate_icons(args)
 }

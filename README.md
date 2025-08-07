@@ -9,6 +9,7 @@ A cross-platform CLI tool for generating icons in various formats from a single 
 - **Customizable sizes**: Generate custom PNG sizes as needed
 - **Mobile platform support**: Automatically generates Android and iOS app icons
 - **Background color support**: Add background colors for iOS icons
+- **Apple Asset Catalog support**: Automatic generation of `Contents.json` for iOS and macOS
 - **Cross-platform**: Runs on Windows, macOS, and Linux
 
 ## Installation
@@ -122,6 +123,25 @@ Options:
 - **Files**: Various `AppIcon-*` files for different iOS icon requirements
 - **Sizes**: 20×20 to 1024×1024 with @1x, @2x, @3x variants
 - **Background**: Applies specified background color (iOS requires opaque icons)
+- **Asset Catalog**: Automatic generation of `Contents.json` for Xcode compatibility
+
+## Apple Asset Catalog Support
+
+This tool automatically generates Apple's `Contents.json` files for both iOS and macOS platforms, making the generated icons ready for use in Xcode projects without any additional configuration.
+
+### iOS Asset Catalog (`icons/ios/Contents.json`)
+- **Purpose**: Defines metadata for iOS app icons including sizes, scales, idioms, and roles
+- **Compatibility**: Works with all iOS devices (iPhone, iPad, and iOS Marketing)
+- **Roles**: Includes proper roles for notification center, spotlight, app launcher, and companion settings
+- **No Xcode Post-processing**: Icons are immediately ready for use in iOS projects
+
+### macOS Asset Catalog (`icons/Contents.json`)
+- **Purpose**: Defines metadata for macOS app icons with proper scaling and size information
+- **Compatibility**: Supports all macOS icon sizes from 16×16 to 1024×1024 with @1x and @2x variants
+- **Integration**: Works seamlessly with macOS app bundles and Xcode projects
+- **No Xcode Post-processing**: Icons are immediately ready for use in macOS projects
+
+The generated `Contents.json` files follow Apple's official Asset Catalog Format Reference, ensuring full compatibility with Xcode and the Apple development ecosystem.
 
 ## Input Requirements
 
@@ -180,6 +200,7 @@ When generating all formats, the output directory structure will be:
 icons/
 ├── icon.ico              # Windows ICO
 ├── icon.icns             # macOS ICNS
+├── Contents.json         # macOS Asset Catalog metadata
 ├── 32x32.png             # Linux desktop
 ├── 64x64.png
 ├── 128x128.png
@@ -192,9 +213,19 @@ icons/
 │   │   └── ic_launcher.png
 │   └── ...
 └── ios/                  # iOS icons
+    ├── Contents.json     # iOS Asset Catalog metadata
     ├── AppIcon-20x20@1x.png
     ├── AppIcon-20x20@2x.png
-    └── ...
+    ├── AppIcon-29x29@1x.png
+    ├── AppIcon-29x29@2x.png
+    ├── AppIcon-40x40@1x.png
+    ├── AppIcon-40x40@2x.png
+    ├── AppIcon-60x60@2x.png
+    ├── AppIcon-60x60@3x.png
+    ├── AppIcon-76x76@1x.png
+    ├── AppIcon-76x76@2x.png
+    ├── AppIcon-83x83@2x.png
+    └── AppIcon-1024x1024.png
 ```
 
 ## Building from Source
