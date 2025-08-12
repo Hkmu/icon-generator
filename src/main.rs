@@ -62,10 +62,32 @@ struct Args {
     /// The background color for iOS icons (CSS color format)
     #[clap(long, default_value = "#ffffff")]
     ios_color: String,
+
+    /// Add a development/debug badge to all generated icons
+    #[clap(long, alias = "debug")]
+    dev_mode: bool,
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
+    
+    // Convert to icon_gen::Args
+    let icon_args = icon_gen::Args {
+        input: args.input,
+        output: args.output,
+        png: args.png,
+        ico_only: args.ico_only,
+        icns_only: args.icns_only,
+        desktop_only: args.desktop_only,
+        mobile_only: args.mobile_only,
+        windows: args.windows,
+        macos: args.macos,
+        linux: args.linux,
+        android: args.android,
+        ios: args.ios,
+        ios_color: args.ios_color,
+        dev_mode: args.dev_mode,
+    };
 
-    icon_gen::generate_icons(args)
+    icon_gen::generate_icons(icon_args)
 }
