@@ -55,6 +55,18 @@ struct Args {
     #[clap(long)]
     android: bool,
 
+    /// Generate round icons for Android (ic_launcher_round) - enabled by default with --android
+    #[clap(long)]
+    android_round: bool,
+
+    /// Generate adaptive icons for Android (with foreground/background layers)
+    #[clap(long)]
+    android_adaptive: bool,
+
+    /// Background color for Android adaptive icons (CSS color format)
+    #[clap(long, default_value = "#ffffff")]
+    android_adaptive_bg: String,
+
     /// Generate icons for iOS platform
     #[clap(long)]
     ios: bool,
@@ -84,6 +96,9 @@ fn main() -> Result<()> {
         macos: args.macos,
         linux: args.linux,
         android: args.android,
+        android_round: args.android_round || args.android, // Enable round by default with android
+        android_adaptive: args.android_adaptive,
+        android_adaptive_bg: args.android_adaptive_bg,
         ios: args.ios,
         ios_color: args.ios_color,
         dev_mode: args.dev_mode,

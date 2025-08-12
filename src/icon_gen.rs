@@ -32,6 +32,9 @@ pub struct Args {
     pub macos: bool,
     pub linux: bool,
     pub android: bool,
+    pub android_round: bool,
+    pub android_adaptive: bool,
+    pub android_adaptive_bg: String,
     pub ios: bool,
     pub ios_color: String,
     pub dev_mode: bool,
@@ -311,7 +314,7 @@ fn generate_platforms(
     }
 
     if args.android {
-        generate_android_icons(source, &args.output, args.dev_mode)?;
+        generate_android_icons_extended(source, args)?;
     }
 
     if args.ios && should_generate_ios {
@@ -450,8 +453,8 @@ fn generate_mobile(
 ) -> Result<()> {
     println!("Generating mobile platform icons...");
 
-    // Android icons
-    generate_android_icons(source, &args.output, args.dev_mode)?;
+    // Android icons with round and adaptive support
+    generate_android_icons_extended(source, args)?;
 
     // iOS icons with background color - only generate when appropriate flags are set
     if should_generate_ios {
@@ -461,30 +464,6 @@ fn generate_mobile(
     Ok(())
 }
 
-fn generate_android_icons(source: &DynamicImage, out_dir: &Path, dev_mode: bool) -> Result<()> {
-    let android_dir = out_dir.join("android");
-    create_dir_all(&android_dir)?;
-
-    let densities = [
-        ("mdpi", 48),
-        ("hdpi", 72),
-        ("xhdpi", 96),
-        ("xxhdpi", 144),
-        ("xxxhdpi", 192),
-    ];
-
-    for (density, size) in densities {
-        let mipmap_dir = android_dir.join(format!("mipmap-{density}"));
-        create_dir_all(&mipmap_dir)?;
-
-        let resized = source.resize_exact(size, size, FilterType::Lanczos3);
-        let output_path = mipmap_dir.join("ic_launcher.png");
-        save_png(&resized, &output_path, dev_mode)?;
-        println!("  ✓ Generated android/mipmap-{density}/ic_launcher.png");
-    }
-
-    Ok(())
-}
 
 fn generate_ios_icons(source: &DynamicImage, out_dir: &Path, color: &str, dev_mode: bool) -> Result<()> {
     let ios_dir = out_dir.join("ios");
@@ -696,5 +675,188 @@ fn write_macos_contents_json(out_dir: &Path, images: Vec<ImageEntry>) -> Result<
         .context("Failed to write macOS Contents.json file")?;
 
     println!("  ✓ Generated Contents.json");
+    Ok(())
+}
+
+/// Generate Android icons with support for round and adaptive icons
+fn generate_android_icons_extended(source: &DynamicImage, args: &Args) -> Result<()> {
+    let android_dir = args.output.join("android");
+    create_dir_all(&android_dir)?;
+
+    println!("Generating Android icons...");
+
+    let densities = [
+        ("mdpi", 48),
+        ("hdpi", 72),
+        ("xhdpi", 96),
+        ("xxhdpi", 144),
+        ("xxxhdpi", 192),
+    ];
+
+    // Generate standard square icons (ic_launcher.png)
+    for (density, size) in densities {
+        let mipmap_dir = android_dir.join(format!("mipmap-{density}"));
+        create_dir_all(&mipmap_dir)?;
+
+        let resized = source.resize_exact(size, size, FilterType::Lanczos3);
+        let output_path = mipmap_dir.join("ic_launcher.png");
+        save_png(&resized, &output_path, args.dev_mode)?;
+        println!("  ✓ Generated android/mipmap-{density}/ic_launcher.png");
+    }
+
+    // Generate round icons if requested (enabled by default with --android)
+    if args.android_round {
+        println!("Generating Android round icons...");
+        for (density, size) in densities {
+            let mipmap_dir = android_dir.join(format!("mipmap-{density}"));
+            
+            // Create a round version by applying a circular mask
+            let resized = source.resize_exact(size, size, FilterType::Lanczos3);
+            let round_icon = apply_circular_mask(&resized)?;
+            
+            let output_path = mipmap_dir.join("ic_launcher_round.png");
+            save_png(&round_icon, &output_path, args.dev_mode)?;
+            println!("  ✓ Generated android/mipmap-{density}/ic_launcher_round.png");
+        }
+    }
+
+    // Generate adaptive icons if requested
+    if args.android_adaptive {
+        println!("Generating Android adaptive icons...");
+        generate_adaptive_icons(source, &android_dir, &args.android_adaptive_bg, args.dev_mode)?;
+    }
+
+    Ok(())
+}
+
+/// Apply a circular mask to an image to create a round icon
+fn apply_circular_mask(img: &DynamicImage) -> Result<DynamicImage> {
+    let width = img.width();
+    let height = img.height();
+    let center_x = width as f32 / 2.0;
+    let center_y = height as f32 / 2.0;
+    let radius = width.min(height) as f32 / 2.0;
+
+    let mut rgba_img = img.to_rgba8();
+
+    for y in 0..height {
+        for x in 0..width {
+            let dx = x as f32 - center_x;
+            let dy = y as f32 - center_y;
+            let distance = (dx * dx + dy * dy).sqrt();
+
+            // Apply anti-aliasing at the edge
+            if distance > radius {
+                rgba_img.put_pixel(x, y, Rgba([0, 0, 0, 0]));
+            } else if distance > radius - 1.0 {
+                // Anti-aliasing edge
+                let alpha_factor = radius - distance;
+                let pixel = rgba_img.get_pixel_mut(x, y);
+                pixel[3] = (pixel[3] as f32 * alpha_factor) as u8;
+            }
+        }
+    }
+
+    Ok(DynamicImage::ImageRgba8(rgba_img))
+}
+
+/// Generate Android adaptive icons with foreground and background layers
+fn generate_adaptive_icons(
+    source: &DynamicImage,
+    android_dir: &Path,
+    bg_color_str: &str,
+    dev_mode: bool,
+) -> Result<()> {
+    // Parse background color
+    let bg_color = css_color::Srgb::from_str(bg_color_str)
+        .map(|color| {
+            Rgba([
+                (color.red * 255.) as u8,
+                (color.green * 255.) as u8,
+                (color.blue * 255.) as u8,
+                255,
+            ])
+        })
+        .unwrap_or(Rgba([255, 255, 255, 255]));
+
+    // Adaptive icon sizes (108dp with 72dp visible area)
+    // The extra 36dp (18dp on each side) is for visual effects
+    let adaptive_densities = [
+        ("mdpi", 108),
+        ("hdpi", 162),
+        ("xhdpi", 216),
+        ("xxhdpi", 324),
+        ("xxxhdpi", 432),
+    ];
+
+    // Generate foreground layers (the actual icon, scaled to fit in safe zone)
+    for (density, size) in adaptive_densities {
+        let mipmap_dir = android_dir.join(format!("mipmap-{density}"));
+        create_dir_all(&mipmap_dir)?;
+
+        // Scale the icon to 66% of the adaptive icon size to fit in the safe zone
+        // This ensures the icon is fully visible in all shapes (circle, square, rounded square, etc.)
+        let icon_size = (size as f32 * 0.66) as u32;
+        let padding = (size - icon_size) / 2;
+        
+        let resized = source.resize_exact(icon_size, icon_size, FilterType::Lanczos3);
+        
+        // Create a transparent canvas of the full adaptive size
+        let mut foreground = ImageBuffer::from_fn(size, size, |_, _| Rgba([0, 0, 0, 0]));
+        
+        // Center the icon on the canvas
+        image::imageops::overlay(&mut foreground, &resized, padding.into(), padding.into());
+        
+        let foreground_img = DynamicImage::ImageRgba8(foreground);
+        let output_path = mipmap_dir.join("ic_launcher_foreground.png");
+        save_png(&foreground_img, &output_path, dev_mode)?;
+        println!("  ✓ Generated android/mipmap-{density}/ic_launcher_foreground.png");
+
+        // Generate background layer (solid color)
+        let background = ImageBuffer::from_fn(size, size, |_, _| bg_color);
+        let background_img = DynamicImage::ImageRgba8(background);
+        let bg_output_path = mipmap_dir.join("ic_launcher_background.png");
+        save_png(&background_img, &bg_output_path, false)?; // Don't apply dev badge to background
+        println!("  ✓ Generated android/mipmap-{density}/ic_launcher_background.png");
+    }
+
+    // Generate XML configuration files for adaptive icons
+    generate_adaptive_icon_xml(&android_dir)?;
+
+    Ok(())
+}
+
+/// Generate XML configuration files for Android adaptive icons
+fn generate_adaptive_icon_xml(android_dir: &Path) -> Result<()> {
+    // Create mipmap-anydpi-v26 directory for adaptive icon XML
+    let anydpi_dir = android_dir.join("mipmap-anydpi-v26");
+    create_dir_all(&anydpi_dir)?;
+
+    // ic_launcher.xml for adaptive square icon
+    let ic_launcher_xml = r#"<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>"#;
+
+    std::fs::write(
+        anydpi_dir.join("ic_launcher.xml"),
+        ic_launcher_xml,
+    ).context("Failed to write ic_launcher.xml")?;
+    println!("  ✓ Generated android/mipmap-anydpi-v26/ic_launcher.xml");
+
+    // ic_launcher_round.xml for adaptive round icon (same layers, system handles the shape)
+    let ic_launcher_round_xml = r#"<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>"#;
+
+    std::fs::write(
+        anydpi_dir.join("ic_launcher_round.xml"),
+        ic_launcher_round_xml,
+    ).context("Failed to write ic_launcher_round.xml")?;
+    println!("  ✓ Generated android/mipmap-anydpi-v26/ic_launcher_round.xml");
+
     Ok(())
 }
