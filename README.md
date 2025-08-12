@@ -9,6 +9,7 @@ A cross-platform CLI tool for generating icons in various formats from a single 
 - **Customizable sizes**: Generate custom PNG sizes as needed
 - **Mobile platform support**: Automatically generates Android and iOS app icons
 - **Background color support**: Add background colors for iOS icons
+- **Development badge support**: Add a "DEV" badge overlay to icons for development builds
 - **Apple Asset Catalog support**: Automatic generation of `Contents.json` for iOS and macOS
 - **Cross-platform**: Runs on Windows, macOS, and Linux
 
@@ -65,6 +66,9 @@ icon-gen input-image.png --mobile-only
 # Set iOS background color
 icon-gen input-image.png --ios-color "#FF5733"
 
+# Add development/debug badge to all generated icons
+icon-gen input-image.png --dev-mode
+
 # Generate icons for specific platforms
 icon-gen input-image.png --windows --macos
 icon-gen input-image.png --android --ios
@@ -94,6 +98,7 @@ Options:
       --android                Generate icons for Android platform
       --ios                    Generate icons for iOS platform
       --ios-color <IOS_COLOR>  The background color for iOS icons (CSS color format) [default: #ffffff]
+      --dev-mode               Add a development/debug badge to all generated icons
   -h, --help                   Print help
 ```
 
@@ -124,6 +129,20 @@ Options:
 - **Sizes**: 20×20 to 1024×1024 with @1x, @2x, @3x variants
 - **Background**: Applies specified background color (iOS requires opaque icons)
 - **Asset Catalog**: Automatic generation of `Contents.json` for Xcode compatibility
+
+## Development Badge Feature
+
+The `--dev-mode` flag (alias: `--debug`) adds a visual "DEV" badge overlay to all generated icons. This feature is useful for:
+
+- **Development builds**: Easily distinguish development icons from production icons
+- **Testing environments**: Visual indicator for QA and staging builds
+- **Beta releases**: Mark pre-release versions with a clear visual indicator
+
+The badge is automatically scaled appropriately for each icon size and is applied to all formats (ICO, ICNS, PNG, Android, and iOS icons). The badge features:
+- Red background with white "DEV" text
+- Positioned in the top-right corner
+- Semi-transparent to maintain icon visibility
+- Automatically scales based on icon dimensions
 
 ## Apple Asset Catalog Support
 
@@ -190,6 +209,16 @@ icon-gen app-icon.png --windows --macos --linux
 
 # Generate Linux icons with custom sizes
 icon-gen app-icon.png --linux -p 16,24,32,48,64,128,256
+```
+
+### Generate icons with development badge
+```bash
+# Add a "DEV" badge to all generated icons for development builds
+icon-gen app-icon.png --dev-mode
+
+# Combine with other options
+icon-gen app-icon.png --dev-mode --mobile-only
+icon-gen app-icon.png --dev-mode --ios-color "#2196F3"
 ```
 
 ## Output Structure
