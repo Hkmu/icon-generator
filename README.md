@@ -102,7 +102,7 @@ Options:
       --ios                    Generate icons for iOS platform
       --ios-color <IOS_COLOR>  The background color for iOS icons (CSS color format) [default: #ffffff]
       --dev-mode               Add a development/debug badge to all generated icons
-      --dev-bug <BUG>          Bug type to use for dev badge (cockroach, ladybug, moth, spider) - only effective with --dev-mode [default: moth]
+      --dev-bug <BUG>          Bug type to use for dev badge (cockroach, ladybug, moth, spider, caterpillar) - only effective with --dev-mode [default: moth]
   -h, --help                   Print help
 ```
 
@@ -147,7 +147,7 @@ The `--dev-mode` flag (alias: `--debug`) adds a visual development badge overlay
 - **Testing environments**: Visual indicator for QA and staging builds
 - **Beta releases**: Mark pre-release versions with a clear visual indicator
 
-The badge uses charming bug images (moth, cockroach, ladybug, or spider) that are automatically scaled and centered on each icon. The default bug is a moth with random rotation for visual variety.
+The badge uses charming bug images (moth, cockroach, ladybug, spider, or caterpillar) that are automatically scaled and centered on each icon. The default bug is a moth with random rotation for visual variety.
 
 ### Bug Options
 
@@ -155,6 +155,7 @@ The badge uses charming bug images (moth, cockroach, ladybug, or spider) that ar
 - **`cockroach`**: Cockroach with fixed orientation
 - **`ladybug`**: Ladybug with fixed orientation
 - **`spider`**: Spider with fixed orientation
+- **`caterpillar`**: Caterpillar with fixed orientation
 
 ### Usage Examples
 
@@ -166,6 +167,7 @@ icon-gen source.png --dev-mode
 icon-gen source.png --dev-mode --dev-bug spider
 icon-gen source.png --dev-mode --dev-bug ladybug
 icon-gen source.png --dev-mode --dev-bug cockroach
+icon-gen source.png --dev-mode --dev-bug caterpillar
 
 # Combine with other options
 icon-gen source.png --dev-mode --dev-bug moth --mobile-only
@@ -262,6 +264,7 @@ icon-gen app-icon.png --dev-mode
 
 # Specify which bug to use
 icon-gen app-icon.png --dev-mode --dev-bug spider
+icon-gen app-icon.png --dev-mode --dev-bug caterpillar
 
 # Combine with other options
 icon-gen app-icon.png --dev-mode --mobile-only

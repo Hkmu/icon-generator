@@ -79,7 +79,7 @@ struct Args {
     #[clap(long, alias = "debug")]
     dev_mode: bool,
 
-    /// Bug type to use for dev badge (cockroach, ladybug, moth, spider) - only effective with --dev-mode
+    /// Bug type to use for dev badge (cockroach, ladybug, moth, spider, caterpillar) - only effective with --dev-mode
     #[clap(long, default_value = "moth", value_name = "BUG")]
     dev_bug: String,
 }

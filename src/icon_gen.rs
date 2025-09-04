@@ -97,8 +97,9 @@ fn get_embedded_bug_image(bug_type: &str) -> Result<&'static [u8]> {
         "cockroach" => Ok(include_bytes!("bugs/cockroach.png")),
         "ladybug" => Ok(include_bytes!("bugs/ladybug.png")),
         "spider" => Ok(include_bytes!("bugs/spider.png")),
+        "caterpillar" => Ok(include_bytes!("bugs/caterpillar.png")),
         _ => Err(anyhow::anyhow!(
-            "Unknown bug type: {}. Available types: moth, cockroach, ladybug, spider",
+            "Unknown bug type: {}. Available types: moth, cockroach, ladybug, spider, caterpillar",
             bug_type
         )),
     }
