@@ -60,10 +60,10 @@ pub fn apply_dev_badge_with_bug(
     let height = img.height();
     let min_dim = width.min(height);
 
-    // Load the bug image
-    let bug_path = format!("src/bugs/{}.png", bug_type);
-    let bug_img = image::open(&bug_path)
-        .with_context(|| format!("Failed to load bug image: {}", bug_path))?;
+    // Load the embedded bug image
+    let bug_data = get_embedded_bug_image(bug_type)?;
+    let bug_img = image::load_from_memory(bug_data)
+        .with_context(|| format!("Failed to load embedded bug image: {}", bug_type))?;
 
     // Calculate bug size - bug should be 1/4 of the minimum dimension
     let bug_size = min_dim / 4;
@@ -88,6 +88,17 @@ pub fn apply_dev_badge_with_bug(
     image::imageops::overlay(img, &final_bug, x.into(), y.into());
 
     Ok(())
+}
+
+/// Get embedded bug image data based on bug type
+fn get_embedded_bug_image(bug_type: &str) -> Result<&'static [u8]> {
+    match bug_type {
+        "moth" => Ok(include_bytes!("bugs/moth.png")),
+        "cockroach" => Ok(include_bytes!("bugs/cockroach.png")),
+        "ladybug" => Ok(include_bytes!("bugs/ladybug.png")),
+        "spider" => Ok(include_bytes!("bugs/spider.png")),
+        _ => Err(anyhow::anyhow!("Unknown bug type: {}. Available types: moth, cockroach, ladybug, spider", bug_type)),
+    }
 }
 
 /// Rotate an image by the given angle in degrees
