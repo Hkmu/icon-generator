@@ -9,9 +9,11 @@ use image::{
     imageops::FilterType,
     ColorType, DynamicImage, ImageBuffer, ImageEncoder, Rgba,
 };
+use rand::Rng;
 use serde::Deserialize;
 use std::{
     collections::HashMap,
+    f32::consts::PI,
     fs::{create_dir_all, File},
     io::{BufWriter, Write},
     path::{Path, PathBuf},
@@ -38,6 +40,7 @@ pub struct Args {
     pub ios: bool,
     pub ios_color: String,
     pub dev_mode: bool,
+    pub dev_bug: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -46,95 +49,90 @@ struct IcnsEntry {
     ostype: String,
 }
 
-/// Apply a development badge overlay to an image
-/// The badge scales with the icon size (min(width, height) / 4)
-/// Draws a semi-transparent red ribbon at the bottom with a diagonal pattern
-pub fn apply_dev_badge(img: &mut DynamicImage) -> Result<()> {
+/// Apply a bug overlay to an image for development mode
+/// Places a bug image in the center of the icon with optional rotation
+pub fn apply_dev_badge_with_bug(
+    img: &mut DynamicImage,
+    bug_type: &str,
+    angle_degrees: f32,
+) -> Result<()> {
     let width = img.width();
     let height = img.height();
     let min_dim = width.min(height);
-    
-    // Calculate badge dimensions - badge height is 1/4 of the minimum dimension
-    let badge_height = min_dim / 4;
-    
-    // Convert to RGBA if not already
-    let mut rgba_img = img.to_rgba8();
-    
-    // Create semi-transparent red color for the ribbon
-    // Using RGBA with alpha channel for transparency
-    let ribbon_color = Rgba([200, 50, 50, 180]); // Semi-transparent red
-    
-    // Draw the ribbon bar at the bottom of the image
-    let ribbon_y_start = height.saturating_sub(badge_height);
-    
-    // Draw the ribbon background
-    for y in ribbon_y_start..height {
-        for x in 0..width {
-            // Get the current pixel
-            let pixel = rgba_img.get_pixel(x, y);
-            
-            // Blend the ribbon color with the existing pixel using alpha blending
-            let blended = blend_pixels(*pixel, ribbon_color);
-            rgba_img.put_pixel(x, y, blended);
-        }
-    }
-    
-    // Add diagonal stripes pattern to indicate "DEV" mode
-    // This creates a clear visual indicator without requiring font rendering
-    if min_dim >= 32 {
-        draw_simple_dev_pattern(&mut rgba_img, ribbon_y_start, badge_height);
-    }
-    
-    // Update the original image with the badged version
-    *img = DynamicImage::ImageRgba8(rgba_img);
-    
+
+    // Load the bug image
+    let bug_path = format!("src/bugs/{}.png", bug_type);
+    let bug_img = image::open(&bug_path)
+        .with_context(|| format!("Failed to load bug image: {}", bug_path))?;
+
+    // Calculate bug size - bug should be 1/4 of the minimum dimension
+    let bug_size = min_dim / 4;
+
+    // Resize the bug image
+    let resized_bug = bug_img.resize_exact(bug_size, bug_size, FilterType::Lanczos3);
+
+    // Rotate the bug if angle is not 0
+    let final_bug = if angle_degrees != 0.0 {
+        rotate_image(&resized_bug, angle_degrees)
+    } else {
+        resized_bug
+    };
+
+    // Calculate position to center the bug
+    let bug_width = final_bug.width();
+    let bug_height = final_bug.height();
+    let x = (width.saturating_sub(bug_width)) / 2;
+    let y = (height.saturating_sub(bug_height)) / 2;
+
+    // Overlay the bug onto the main image
+    image::imageops::overlay(img, &final_bug, x.into(), y.into());
+
     Ok(())
 }
 
-/// Draw a simple diagonal pattern to indicate development mode
-fn draw_simple_dev_pattern(img: &mut ImageBuffer<Rgba<u8>, Vec<u8>>, ribbon_y: u32, badge_height: u32) {
+/// Rotate an image by the given angle in degrees
+fn rotate_image(img: &DynamicImage, angle_degrees: f32) -> DynamicImage {
+    let angle_radians = angle_degrees * PI / 180.0;
+
+    // For simplicity, we'll implement a basic rotation
+    // This could be enhanced with more sophisticated rotation algorithms
     let width = img.width();
-    
-    // Draw a simple pattern to indicate "DEV" - using diagonal lines
-    // This creates a hatched pattern that clearly indicates development mode
-    let line_spacing = 4.max(badge_height / 8);
-    
-    for offset in (0..badge_height * 2).step_by(line_spacing as usize) {
-        for thickness in 0..2 {
-            for x in 0..width {
-                let y = ribbon_y + offset.saturating_sub(x) + thickness;
-                if y >= ribbon_y && y < ribbon_y + badge_height && x < width {
-                    if let Some(pixel) = img.get_pixel_mut_checked(x, y) {
-                        *pixel = blend_pixels(*pixel, Rgba([255, 255, 255, 100]));
-                    }
-                }
+    let height = img.height();
+
+    // Create a new image with the same dimensions
+    let mut rotated = ImageBuffer::from_fn(width, height, |_, _| Rgba([0, 0, 0, 0]));
+
+    // Center of rotation
+    let center_x = width as f32 / 2.0;
+    let center_y = height as f32 / 2.0;
+
+    let rgba_img = img.to_rgba8();
+
+    // Simple nearest-neighbor rotation
+    for y in 0..height {
+        for x in 0..width {
+            // Translate to center
+            let dx = x as f32 - center_x;
+            let dy = y as f32 - center_y;
+
+            // Rotate
+            let rotated_x = dx * angle_radians.cos() - dy * angle_radians.sin();
+            let rotated_y = dx * angle_radians.sin() + dy * angle_radians.cos();
+
+            // Translate back
+            let source_x = (rotated_x + center_x) as i32;
+            let source_y = (rotated_y + center_y) as i32;
+
+            // Check bounds and copy pixel
+            if source_x >= 0 && source_x < width as i32 && source_y >= 0 && source_y < height as i32
+            {
+                let pixel = rgba_img.get_pixel(source_x as u32, source_y as u32);
+                rotated.put_pixel(x, y, *pixel);
             }
         }
     }
-}
 
-/// Blend two pixels using alpha compositing
-fn blend_pixels(bottom: Rgba<u8>, top: Rgba<u8>) -> Rgba<u8> {
-    let alpha_top = top[3] as f32 / 255.0;
-    let alpha_bottom = bottom[3] as f32 / 255.0;
-    
-    // Calculate the output alpha
-    let alpha_out = alpha_top + alpha_bottom * (1.0 - alpha_top);
-    
-    if alpha_out == 0.0 {
-        return Rgba([0, 0, 0, 0]);
-    }
-    
-    // Calculate the output color values
-    let r = ((top[0] as f32 * alpha_top + bottom[0] as f32 * alpha_bottom * (1.0 - alpha_top))
-        / alpha_out) as u8;
-    let g = ((top[1] as f32 * alpha_top + bottom[1] as f32 * alpha_bottom * (1.0 - alpha_top))
-        / alpha_out) as u8;
-    let b = ((top[2] as f32 * alpha_top + bottom[2] as f32 * alpha_bottom * (1.0 - alpha_top))
-        / alpha_out) as u8;
-    let a = (alpha_out * 255.0) as u8;
-    
-    Rgba([r, g, b, a])
+    DynamicImage::ImageRgba8(rotated)
 }
 
 pub fn generate_icons(args: Args) -> Result<()> {
@@ -155,10 +153,10 @@ pub fn generate_icons(args: Args) -> Result<()> {
     if args.icns_only {
         // Only macOS icons
         if should_generate_macos {
-            generate_icns(&source, &args.output, args.dev_mode)?;
+            generate_icns(&source, &args.output, args.dev_mode, &args.dev_bug)?;
         }
     } else if args.ico_only {
-        generate_ico(&source, &args.output, args.dev_mode)?;
+        generate_ico(&source, &args.output, args.dev_mode, &args.dev_bug)?;
     } else if args.desktop_only {
         generate_desktop_only(&source, &args, should_generate_macos)?;
     } else if args.mobile_only {
@@ -209,7 +207,7 @@ fn should_invoke_ios_writer(args: &Args, has_platform_flags: bool) -> bool {
     false
 }
 
-/// Determine when the macOS writer should be invoked  
+/// Determine when the macOS writer should be invoked
 /// Only invoke when macOS icons are produced (icns_only, macos, desktop_only, default)
 fn should_invoke_macos_writer(args: &Args, has_platform_flags: bool) -> bool {
     // If specific macOS flag is set
@@ -247,16 +245,16 @@ fn generate_all(
     should_generate_macos: bool,
 ) -> Result<()> {
     if let Some(sizes) = &args.png {
-        generate_custom_sizes(source, sizes, &args.output, args.dev_mode)?;
+        generate_custom_sizes(source, sizes, &args.output, args.dev_mode, &args.dev_bug)?;
     } else {
         // Generate default formats when no specific platform flags are set
-        generate_ico(source, &args.output, args.dev_mode)?;
+        generate_ico(source, &args.output, args.dev_mode, &args.dev_bug)?;
 
         if should_generate_macos {
-            generate_icns(source, &args.output, args.dev_mode)?;
+            generate_icns(&source, &args.output, args.dev_mode, &args.dev_bug)?;
         }
 
-        generate_linux_icons(source, &args.output, args.dev_mode)?;
+        generate_linux_icons(source, &args.output, args.dev_mode, &args.dev_bug)?;
         generate_mobile(source, args, should_generate_ios)?;
     }
 
@@ -269,15 +267,15 @@ fn generate_desktop_only(
     should_generate_macos: bool,
 ) -> Result<()> {
     if let Some(sizes) = &args.png {
-        generate_custom_sizes(source, sizes, &args.output, args.dev_mode)?;
+        generate_custom_sizes(source, sizes, &args.output, args.dev_mode, &args.dev_bug)?;
     } else {
-        generate_ico(source, &args.output, args.dev_mode)?;
+        generate_ico(source, &args.output, args.dev_mode, &args.dev_bug)?;
 
         if should_generate_macos {
-            generate_icns(source, &args.output, args.dev_mode)?;
+            generate_icns(source, &args.output, args.dev_mode, &args.dev_bug)?;
         }
 
-        generate_linux_icons(source, &args.output, args.dev_mode)?;
+        generate_linux_icons(source, &args.output, args.dev_mode, &args.dev_bug)?;
     }
     Ok(())
 }
@@ -298,18 +296,18 @@ fn generate_platforms(
     should_generate_macos: bool,
 ) -> Result<()> {
     if args.windows {
-        generate_ico(source, &args.output, args.dev_mode)?;
+        generate_ico(source, &args.output, args.dev_mode, &args.dev_bug)?;
     }
 
     if args.macos && should_generate_macos {
-        generate_icns(source, &args.output, args.dev_mode)?;
+        generate_icns(source, &args.output, args.dev_mode, &args.dev_bug)?;
     }
 
     if args.linux {
         if let Some(sizes) = &args.png {
-            generate_custom_sizes(source, sizes, &args.output, args.dev_mode)?;
+            generate_custom_sizes(source, sizes, &args.output, args.dev_mode, &args.dev_bug)?;
         } else {
-            generate_linux_icons(source, &args.output, args.dev_mode)?;
+            generate_linux_icons(source, &args.output, args.dev_mode, &args.dev_bug)?;
         }
     }
 
@@ -318,25 +316,41 @@ fn generate_platforms(
     }
 
     if args.ios && should_generate_ios {
-        generate_ios_icons(source, &args.output, &args.ios_color, args.dev_mode)?;
+        generate_ios_icons(
+            source,
+            &args.output,
+            &args.ios_color,
+            args.dev_mode,
+            &args.dev_bug,
+        )?;
     }
 
     Ok(())
 }
 
-fn generate_ico(source: &DynamicImage, out_dir: &Path, dev_mode: bool) -> Result<()> {
+fn generate_ico(
+    source: &DynamicImage,
+    out_dir: &Path,
+    dev_mode: bool,
+    dev_bug: &str,
+) -> Result<()> {
     println!("Generating icon.ico...");
     let mut frames = Vec::new();
 
     // Common ICO sizes
     for size in [16, 24, 32, 48, 64, 256] {
         let mut resized = source.resize_exact(size, size, FilterType::Lanczos3);
-        
+
         // Apply dev badge before encoding
         if dev_mode {
-            apply_dev_badge(&mut resized)?;
+            let angle = if dev_bug == "moth" {
+                rand::thread_rng().gen_range(0.0..360.0)
+            } else {
+                0.0
+            };
+            apply_dev_badge_with_bug(&mut resized, dev_bug, angle)?;
         }
-        
+
         let rgba_image = resized.to_rgba8();
 
         // Only the 256px layer can be compressed according to the ico specs
@@ -363,7 +377,12 @@ fn generate_ico(source: &DynamicImage, out_dir: &Path, dev_mode: bool) -> Result
     Ok(())
 }
 
-fn generate_icns(source: &DynamicImage, out_dir: &Path, dev_mode: bool) -> Result<()> {
+fn generate_icns(
+    source: &DynamicImage,
+    out_dir: &Path,
+    dev_mode: bool,
+    dev_bug: &str,
+) -> Result<()> {
     println!("Generating icon.icns...");
     let icns_json = r#"
     {
@@ -385,12 +404,17 @@ fn generate_icns(source: &DynamicImage, out_dir: &Path, dev_mode: bool) -> Resul
 
     for (name, entry) in &entries {
         let mut image = source.resize_exact(entry.size, entry.size, FilterType::Lanczos3);
-        
+
         // Apply dev badge before encoding
         if dev_mode {
-            apply_dev_badge(&mut image)?;
+            let angle = if dev_bug == "moth" {
+                rand::thread_rng().gen_range(0.0..360.0)
+            } else {
+                0.0
+            };
+            apply_dev_badge_with_bug(&mut image, dev_bug, angle)?;
         }
-        
+
         let mut buf = Vec::new();
         let rgba_image = image.to_rgba8();
         write_png(rgba_image.as_raw(), &mut buf, entry.size)?;
@@ -417,18 +441,29 @@ fn generate_icns(source: &DynamicImage, out_dir: &Path, dev_mode: bool) -> Resul
     Ok(())
 }
 
-fn generate_custom_sizes(source: &DynamicImage, sizes: &[u32], out_dir: &Path, dev_mode: bool) -> Result<()> {
+fn generate_custom_sizes(
+    source: &DynamicImage,
+    sizes: &[u32],
+    out_dir: &Path,
+    dev_mode: bool,
+    dev_bug: &str,
+) -> Result<()> {
     println!("Generating custom PNG sizes...");
     for &size in sizes {
         let resized = source.resize_exact(size, size, image::imageops::FilterType::Lanczos3);
         let output_path = out_dir.join(format!("{}x{}.png", size, size));
-        save_png(&resized, &output_path, dev_mode)?;
+        save_png(&resized, &output_path, dev_mode, dev_bug)?;
         println!("  ✓ Generated {}x{}.png", size, size);
     }
     Ok(())
 }
 
-fn generate_linux_icons(source: &DynamicImage, out_dir: &Path, dev_mode: bool) -> Result<()> {
+fn generate_linux_icons(
+    source: &DynamicImage,
+    out_dir: &Path,
+    dev_mode: bool,
+    dev_bug: &str,
+) -> Result<()> {
     println!("Generating Linux desktop icons...");
     let desktop_sizes = [32, 64, 128, 256, 512];
     for size in desktop_sizes {
@@ -440,17 +475,13 @@ fn generate_linux_icons(source: &DynamicImage, out_dir: &Path, dev_mode: bool) -
 
         let resized = source.resize_exact(size, size, FilterType::Lanczos3);
         let output_path = out_dir.join(&filename);
-        save_png(&resized, &output_path, dev_mode)?;
+        save_png(&resized, &output_path, dev_mode, dev_bug)?;
         println!("  ✓ Generated {filename}");
     }
     Ok(())
 }
 
-fn generate_mobile(
-    source: &DynamicImage,
-    args: &Args,
-    should_generate_ios: bool,
-) -> Result<()> {
+fn generate_mobile(source: &DynamicImage, args: &Args, should_generate_ios: bool) -> Result<()> {
     println!("Generating mobile platform icons...");
 
     // Android icons with round and adaptive support
@@ -458,14 +489,25 @@ fn generate_mobile(
 
     // iOS icons with background color - only generate when appropriate flags are set
     if should_generate_ios {
-        generate_ios_icons(source, &args.output, &args.ios_color, args.dev_mode)?;
+        generate_ios_icons(
+            source,
+            &args.output,
+            &args.ios_color,
+            args.dev_mode,
+            &args.dev_bug,
+        )?;
     }
 
     Ok(())
 }
 
-
-fn generate_ios_icons(source: &DynamicImage, out_dir: &Path, color: &str, dev_mode: bool) -> Result<()> {
+fn generate_ios_icons(
+    source: &DynamicImage,
+    out_dir: &Path,
+    color: &str,
+    dev_mode: bool,
+    dev_bug: &str,
+) -> Result<()> {
     let ios_dir = out_dir.join("ios");
     create_dir_all(&ios_dir)?;
 
@@ -511,7 +553,7 @@ fn generate_ios_icons(source: &DynamicImage, out_dir: &Path, color: &str, dev_mo
             resized = DynamicImage::ImageRgba8(bg_img);
 
             let output_path = ios_dir.join(&filename);
-            save_png(&resized, &output_path, dev_mode)?;
+            save_png(&resized, &output_path, dev_mode, dev_bug)?;
             println!("  ✓ Generated ios/{filename}");
 
             // Immediately after PNG is written, create ImageEntry
@@ -552,17 +594,21 @@ fn generate_ios_icons(source: &DynamicImage, out_dir: &Path, color: &str, dev_mo
     Ok(())
 }
 
-fn save_png(image: &DynamicImage, path: &Path, dev_mode: bool) -> Result<()> {
+fn save_png(image: &DynamicImage, path: &Path, dev_mode: bool, dev_bug: &str) -> Result<()> {
     let mut img = image.clone();
-    
+
     // Apply dev badge if in dev mode
     if dev_mode {
-        apply_dev_badge(&mut img)?;
+        let angle = if dev_bug == "moth" {
+            rand::thread_rng().gen_range(0.0..360.0)
+        } else {
+            0.0
+        };
+        apply_dev_badge_with_bug(&mut img, dev_bug, angle)?;
     }
-    
+
     let mut file = std::fs::File::create(path).context("Failed to create PNG file")?;
-    img
-        .write_to(&mut file, image::ImageOutputFormat::Png)
+    img.write_to(&mut file, image::ImageOutputFormat::Png)
         .context("Failed to write PNG")?;
     Ok(())
 }
@@ -700,7 +746,7 @@ fn generate_android_icons_extended(source: &DynamicImage, args: &Args) -> Result
 
         let resized = source.resize_exact(size, size, FilterType::Lanczos3);
         let output_path = mipmap_dir.join("ic_launcher.png");
-        save_png(&resized, &output_path, args.dev_mode)?;
+        save_png(&resized, &output_path, args.dev_mode, &args.dev_bug)?;
         println!("  ✓ Generated android/mipmap-{density}/ic_launcher.png");
     }
 
@@ -709,13 +755,13 @@ fn generate_android_icons_extended(source: &DynamicImage, args: &Args) -> Result
         println!("Generating Android round icons...");
         for (density, size) in densities {
             let mipmap_dir = android_dir.join(format!("mipmap-{density}"));
-            
+
             // Create a round version by applying a circular mask
             let resized = source.resize_exact(size, size, FilterType::Lanczos3);
             let round_icon = apply_circular_mask(&resized)?;
-            
+
             let output_path = mipmap_dir.join("ic_launcher_round.png");
-            save_png(&round_icon, &output_path, args.dev_mode)?;
+            save_png(&round_icon, &output_path, args.dev_mode, &args.dev_bug)?;
             println!("  ✓ Generated android/mipmap-{density}/ic_launcher_round.png");
         }
     }
@@ -723,7 +769,13 @@ fn generate_android_icons_extended(source: &DynamicImage, args: &Args) -> Result
     // Generate adaptive icons if requested
     if args.android_adaptive {
         println!("Generating Android adaptive icons...");
-        generate_adaptive_icons(source, &android_dir, &args.android_adaptive_bg, args.dev_mode)?;
+        generate_adaptive_icons(
+            source,
+            &android_dir,
+            &args.android_adaptive_bg,
+            args.dev_mode,
+            &args.dev_bug,
+        )?;
     }
 
     Ok(())
@@ -766,6 +818,7 @@ fn generate_adaptive_icons(
     android_dir: &Path,
     bg_color_str: &str,
     dev_mode: bool,
+    dev_bug: &str,
 ) -> Result<()> {
     // Parse background color
     let bg_color = css_color::Srgb::from_str(bg_color_str)
@@ -798,25 +851,25 @@ fn generate_adaptive_icons(
         // This ensures the icon is fully visible in all shapes (circle, square, rounded square, etc.)
         let icon_size = (size as f32 * 0.66) as u32;
         let padding = (size - icon_size) / 2;
-        
+
         let resized = source.resize_exact(icon_size, icon_size, FilterType::Lanczos3);
-        
+
         // Create a transparent canvas of the full adaptive size
         let mut foreground = ImageBuffer::from_fn(size, size, |_, _| Rgba([0, 0, 0, 0]));
-        
+
         // Center the icon on the canvas
         image::imageops::overlay(&mut foreground, &resized, padding.into(), padding.into());
-        
+
         let foreground_img = DynamicImage::ImageRgba8(foreground);
         let output_path = mipmap_dir.join("ic_launcher_foreground.png");
-        save_png(&foreground_img, &output_path, dev_mode)?;
+        save_png(&foreground_img, &output_path, dev_mode, dev_bug)?;
         println!("  ✓ Generated android/mipmap-{density}/ic_launcher_foreground.png");
 
         // Generate background layer (solid color)
         let background = ImageBuffer::from_fn(size, size, |_, _| bg_color);
         let background_img = DynamicImage::ImageRgba8(background);
         let bg_output_path = mipmap_dir.join("ic_launcher_background.png");
-        save_png(&background_img, &bg_output_path, false)?; // Don't apply dev badge to background
+        save_png(&background_img, &bg_output_path, false, "")?; // Don't apply dev badge to background
         println!("  ✓ Generated android/mipmap-{density}/ic_launcher_background.png");
     }
 
@@ -839,10 +892,8 @@ fn generate_adaptive_icon_xml(android_dir: &Path) -> Result<()> {
     <foreground android:drawable="@mipmap/ic_launcher_foreground" />
 </adaptive-icon>"#;
 
-    std::fs::write(
-        anydpi_dir.join("ic_launcher.xml"),
-        ic_launcher_xml,
-    ).context("Failed to write ic_launcher.xml")?;
+    std::fs::write(anydpi_dir.join("ic_launcher.xml"), ic_launcher_xml)
+        .context("Failed to write ic_launcher.xml")?;
     println!("  ✓ Generated android/mipmap-anydpi-v26/ic_launcher.xml");
 
     // ic_launcher_round.xml for adaptive round icon (same layers, system handles the shape)
@@ -855,7 +906,8 @@ fn generate_adaptive_icon_xml(android_dir: &Path) -> Result<()> {
     std::fs::write(
         anydpi_dir.join("ic_launcher_round.xml"),
         ic_launcher_round_xml,
-    ).context("Failed to write ic_launcher_round.xml")?;
+    )
+    .context("Failed to write ic_launcher_round.xml")?;
     println!("  ✓ Generated android/mipmap-anydpi-v26/ic_launcher_round.xml");
 
     Ok(())

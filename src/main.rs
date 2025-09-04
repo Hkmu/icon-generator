@@ -78,11 +78,15 @@ struct Args {
     /// Add a development/debug badge to all generated icons
     #[clap(long, alias = "debug")]
     dev_mode: bool,
+
+    /// Bug type to use for dev badge (cockroach, ladybug, moth, spider) - only effective with --dev-mode
+    #[clap(long, default_value = "moth", value_name = "BUG")]
+    dev_bug: String,
 }
 
 fn main() -> Result<()> {
     let args = Args::parse();
-    
+
     // Convert to icon_gen::Args
     let icon_args = icon_gen::Args {
         input: args.input,
@@ -102,6 +106,7 @@ fn main() -> Result<()> {
         ios: args.ios,
         ios_color: args.ios_color,
         dev_mode: args.dev_mode,
+        dev_bug: args.dev_bug,
     };
 
     icon_gen::generate_icons(icon_args)

@@ -69,6 +69,9 @@ icon-gen input-image.png --ios-color "#FF5733"
 # Add development/debug badge to all generated icons
 icon-gen input-image.png --dev-mode
 
+# Add development badge with specific bug type
+icon-gen input-image.png --dev-mode --dev-bug spider
+
 # Generate icons for specific platforms
 icon-gen input-image.png --windows --macos
 icon-gen input-image.png --android --ios
@@ -99,31 +102,37 @@ Options:
       --ios                    Generate icons for iOS platform
       --ios-color <IOS_COLOR>  The background color for iOS icons (CSS color format) [default: #ffffff]
       --dev-mode               Add a development/debug badge to all generated icons
+      --dev-bug <BUG>          Bug type to use for dev badge (cockroach, ladybug, moth, spider) - only effective with --dev-mode [default: moth]
   -h, --help                   Print help
 ```
 
 ## Generated Icon Formats
 
 ### Windows (ICO)
+
 - **File**: `icon.ico`
 - **Sizes**: 16×16, 24×24, 32×32, 48×48, 64×64, 256×256
 - **Format**: Multi-layer ICO file with PNG compression for 256×256
 
 ### macOS (ICNS)
+
 - **File**: `icon.icns`
 - **Sizes**: 16×16, 32×32, 128×128, 256×256, 512×512, 1024×1024 (including @2x variants)
 - **Format**: Apple ICNS format
 
 ### Linux/Desktop (PNG)
+
 - **Files**: `32x32.png`, `64x64.png`, `128x128.png`, `256x256.png`, `icon.png` (512×512)
 - **Format**: PNG with transparency
 
 ### Android
+
 - **Directory**: `android/mipmap-*/`
 - **Files**: `ic_launcher.png` in each density folder
 - **Densities**: mdpi (48×48), hdpi (72×72), xhdpi (96×96), xxhdpi (144×144), xxxhdpi (192×192)
 
 ### iOS
+
 - **Directory**: `ios/`
 - **Files**: Various `AppIcon-*` files for different iOS icon requirements
 - **Sizes**: 20×20 to 1024×1024 with @1x, @2x, @3x variants
@@ -132,29 +141,57 @@ Options:
 
 ## Development Badge Feature
 
-The `--dev-mode` flag (alias: `--debug`) adds a visual "DEV" badge overlay to all generated icons. This feature is useful for:
+The `--dev-mode` flag (alias: `--debug`) adds a visual development badge overlay to all generated icons. This feature is useful for:
 
 - **Development builds**: Easily distinguish development icons from production icons
 - **Testing environments**: Visual indicator for QA and staging builds
 - **Beta releases**: Mark pre-release versions with a clear visual indicator
 
-The badge is automatically scaled appropriately for each icon size and is applied to all formats (ICO, ICNS, PNG, Android, and iOS icons). The badge features:
-- Red background with white "DEV" text
-- Positioned in the top-right corner
-- Semi-transparent to maintain icon visibility
-- Automatically scales based on icon dimensions
+The badge uses charming bug images (moth, cockroach, ladybug, or spider) that are automatically scaled and centered on each icon. The default bug is a moth with random rotation for visual variety.
+
+### Bug Options
+
+- **`moth`** (default): Classic moth with random rotation (0-360°)
+- **`cockroach`**: Cockroach with fixed orientation
+- **`ladybug`**: Ladybug with fixed orientation
+- **`spider`**: Spider with fixed orientation
+
+### Usage Examples
+
+```bash
+# Use default moth with random rotation
+icon-gen source.png --dev-mode
+
+# Specify different bug types
+icon-gen source.png --dev-mode --dev-bug spider
+icon-gen source.png --dev-mode --dev-bug ladybug
+icon-gen source.png --dev-mode --dev-bug cockroach
+
+# Combine with other options
+icon-gen source.png --dev-mode --dev-bug moth --mobile-only
+```
+
+### Features
+
+- **Smart Scaling**: Bugs automatically scale to 1/4 of the icon size
+- **Perfect Centering**: Bugs are precisely centered on each icon
+- **Random Rotation**: Moth gets random rotation for visual variety
+- **Cross-Platform**: Works across all supported formats (ICO, ICNS, PNG, Android, iOS)
+- **Alpha Blending**: Seamless overlay with proper transparency handling
 
 ## Apple Asset Catalog Support
 
 This tool automatically generates Apple's `Contents.json` files for both iOS and macOS platforms, making the generated icons ready for use in Xcode projects without any additional configuration.
 
 ### iOS Asset Catalog (`icons/ios/Contents.json`)
+
 - **Purpose**: Defines metadata for iOS app icons including sizes, scales, idioms, and roles
 - **Compatibility**: Works with all iOS devices (iPhone, iPad, and iOS Marketing)
 - **Roles**: Includes proper roles for notification center, spotlight, app launcher, and companion settings
 - **No Xcode Post-processing**: Icons are immediately ready for use in iOS projects
 
 ### macOS Asset Catalog (`icons/Contents.json`)
+
 - **Purpose**: Defines metadata for macOS app icons with proper scaling and size information
 - **Compatibility**: Supports all macOS icon sizes from 16×16 to 1024×1024 with @1x and @2x variants
 - **Integration**: Works seamlessly with macOS app bundles and Xcode projects
@@ -172,31 +209,37 @@ The generated `Contents.json` files follow Apple's official Asset Catalog Format
 ## Examples
 
 ### Generate all icons from a 1024×1024 PNG
+
 ```bash
 icon-gen app-icon-1024.png
 ```
 
 ### Generate only desktop icons (Windows, macOS, Linux)
+
 ```bash
 icon-gen app-icon.png --desktop-only
 ```
 
 ### Generate custom sizes for a favicon
+
 ```bash
 icon-gen favicon-source.png -p 16,32,48 -o favicon-output
 ```
 
 ### Generate iOS icons with custom background
+
 ```bash
 icon-gen transparent-icon.png --ios-color "#2196F3"
 ```
 
 ### Generate only mobile app icons
+
 ```bash
 icon-gen app-icon.png --mobile-only
 ```
 
 ### Generate icons for specific platforms only
+
 ```bash
 # Generate only Windows icons
 icon-gen app-icon.png --windows
@@ -212,13 +255,18 @@ icon-gen app-icon.png --linux -p 16,24,32,48,64,128,256
 ```
 
 ### Generate icons with development badge
+
 ```bash
-# Add a "DEV" badge to all generated icons for development builds
+# Add a bug overlay to all generated icons for development builds
 icon-gen app-icon.png --dev-mode
+
+# Specify which bug to use
+icon-gen app-icon.png --dev-mode --dev-bug spider
 
 # Combine with other options
 icon-gen app-icon.png --dev-mode --mobile-only
 icon-gen app-icon.png --dev-mode --ios-color "#2196F3"
+icon-gen app-icon.png --dev-mode --dev-bug ladybug --android --ios
 ```
 
 ## Output Structure
@@ -260,6 +308,7 @@ icons/
 ## Building from Source
 
 ### Prerequisites
+
 - Rust 1.70+ (install from [rustup.rs](https://rustup.rs/))
 - System dependencies for image processing (usually included)
 
