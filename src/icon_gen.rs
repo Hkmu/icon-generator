@@ -68,8 +68,8 @@ pub fn apply_dev_badge_with_bug(
     // Calculate bug size - bug should be 1/4 of the minimum dimension
     let bug_size = min_dim / 4;
 
-    // Resize the bug image
-    let resized_bug = bug_img.resize_exact(bug_size, bug_size, FilterType::Lanczos3);
+    // Resize the bug image while maintaining aspect ratio
+    let resized_bug = resize_bug_with_aspect_ratio(&bug_img, bug_size);
 
     // Rotate the bug if angle is not 0
     let final_bug = if angle_degrees != 0.0 {
@@ -97,7 +97,10 @@ fn get_embedded_bug_image(bug_type: &str) -> Result<&'static [u8]> {
         "cockroach" => Ok(include_bytes!("bugs/cockroach.png")),
         "ladybug" => Ok(include_bytes!("bugs/ladybug.png")),
         "spider" => Ok(include_bytes!("bugs/spider.png")),
-        _ => Err(anyhow::anyhow!("Unknown bug type: {}. Available types: moth, cockroach, ladybug, spider", bug_type)),
+        _ => Err(anyhow::anyhow!(
+            "Unknown bug type: {}. Available types: moth, cockroach, ladybug, spider",
+            bug_type
+        )),
     }
 }
 
@@ -922,4 +925,30 @@ fn generate_adaptive_icon_xml(android_dir: &Path) -> Result<()> {
     println!("  ✓ Generated android/mipmap-anydpi-v26/ic_launcher_round.xml");
 
     Ok(())
+}
+
+/// Resize the bug image to the given size, maintaining the aspect ratio
+fn resize_bug_with_aspect_ratio(bug_img: &DynamicImage, target_size: u32) -> DynamicImage {
+    let original_width = bug_img.width() as f32;
+    let original_height = bug_img.height() as f32;
+    let target_size_f32 = target_size as f32;
+
+    // Calculate aspect ratio
+    let aspect_ratio = original_width / original_height;
+
+    // Calculate new dimensions to fit within target_size while maintaining aspect ratio
+    let (new_width, new_height) = if aspect_ratio > 1.0 {
+        // Image is wider than tall
+        let width = target_size_f32;
+        let height = target_size_f32 / aspect_ratio;
+        (width as u32, height as u32)
+    } else {
+        // Image is taller than wide (or square)
+        let height = target_size_f32;
+        let width = target_size_f32 * aspect_ratio;
+        (width as u32, height as u32)
+    };
+
+    // Resize the image with the calculated dimensions
+    bug_img.resize_exact(new_width, new_height, FilterType::Lanczos3)
 }
