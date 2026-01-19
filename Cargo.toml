@@ -1,6 +1,6 @@
 [package]
 name = "icon-gen"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["hej <jiehecd@gmail.com>"]
 description = "A cross-platform CLI tool for generating icons in various formats from a single source image"
