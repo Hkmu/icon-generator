@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a Rust-based CLI tool called `icon-gen` that generates cross-platform icons from a single source image. It creates icons for Windows (ICO), macOS (ICNS), Linux (PNG), Android, and iOS platforms with various customization options.
+This is a Rust-based CLI tool called `icon-gen` that generates cross-platform icons from a single source image. It creates icons for Windows (ICO), macOS (ICNS), Linux (PNG), Android, iOS, and Tauri platforms with various customization options.
+
+**Key Design Principle**: Each platform gets its own dedicated subdirectory, making it easy to drag and drop files into the appropriate project location without referring to documentation.
 
 ## Common Development Commands
 
@@ -33,6 +35,9 @@ cargo run -- input-image.png --dev-mode
 
 # Test specific platform generation
 cargo run -- input-image.png --android --ios
+
+# Generate Tauri desktop icons
+cargo run -- input-image.png --tauri-desktop
 ```
 
 ## Architecture
@@ -56,10 +61,21 @@ cargo run -- input-image.png --android --ios
 The tool uses a flexible flag-based system to determine which platforms to generate icons for:
 
 1. **Flag Logic**: `should_invoke_ios_writer()` and `should_invoke_macos_writer()` functions determine when to generate platform-specific icons
-2. **Generation Modes**: 
-   - `generate_all()`: Default mode when no specific flags are set
-   - `generate_platforms()`: When specific platform flags are used
+2. **Generation Modes**:
+   - `generate_all()`: Default mode when no specific flags are set (generates all platforms including tauri-desktop)
+   - `generate_platforms()`: When specific platform flags are used (includes tauri-desktop when any desktop platform is enabled)
    - `generate_desktop_only()` / `generate_mobile_only()`: For platform category restrictions
+   - `--tauri-desktop`: Generate only Tauri desktop icons (special mode for Tauri projects)
+
+### CLI Flags (Platform-Specific)
+- `--windows`: Generate Windows icons only
+- `--macos`: Generate macOS icons only
+- `--linux`: Generate Linux icons only
+- `--android`: Generate Android icons only
+- `--ios`: Generate iOS icons only
+- `--tauri-desktop`: Generate Tauri desktop icons (windows/, macos/, linux/ + tauri-desktop/)
+- `--desktop-only`: Generate all desktop platforms (Windows, macOS, Linux)
+- `--mobile-only`: Generate all mobile platforms (Android, iOS)
 
 ### Icon Generation Flow
 
@@ -83,6 +99,14 @@ The tool uses a flexible flag-based system to determine which platforms to gener
 - **Asset Catalog**: Automatically generates Contents.json with proper metadata
 - **Icon Roles**: Supports notification center, spotlight, app launcher, and companion settings
 - **Size Variants**: Handles @1x, @2x, @3x scaling for all iOS icon sizes
+
+### Tauri Desktop Support
+
+The tool has dedicated support for Tauri projects with the `--tauri-desktop` flag:
+- **tauri-desktop/ directory**: Contains all files needed for Tauri's `src-tauri/icons` folder
+- **Files**: `32x32.png`, `128x128.png`, `128x128@2x.png`, `icon.ico`, `icon.icns`
+- **Drag & Drop**: Users can simply copy the entire `tauri-desktop` folder contents to `src-tauri/icons`
+- **Automatic**: Generated whenever desktop icons are created (default, desktop-only, or with desktop platform flags)
 
 ### Development Badge Feature
 
@@ -111,21 +135,30 @@ The `contents_json.rs` module provides comprehensive Apple Asset Catalog support
 
 ```
 icons/
-├── icon.ico              # Windows multi-layer ICO
-├── icon.icns             # macOS ICNS with all sizes
-├── Contents.json         # macOS Asset Catalog metadata
-├── 32x32.png             # Linux desktop icons
-├── 64x64.png
-├── 128x128.png
-├── 256x256.png
-├── icon.png              # 512x512 Linux icon
+├── windows/              # Windows icons
+│   └── icon.ico
+├── macos/                # macOS icons
+│   ├── icon.icns
+│   └── Contents.json
+├── linux/                # Linux desktop icons
+│   ├── 32x32.png
+│   ├── 64x64.png
+│   ├── 128x128.png
+│   ├── 256x256.png
+│   └── icon.png
+├── tauri-desktop/        # Tauri desktop icons (ready for src-tauri/icons)
+│   ├── 32x32.png
+│   ├── 128x128.png
+│   ├── 128x128@2x.png
+│   ├── icon.ico
+│   └── icon.icns
 ├── android/              # Android icons by density
 │   ├── mipmap-mdpi/
 │   ├── mipmap-hdpi/
 │   └── ...
 └── ios/                  # iOS icons with asset catalog
-    ├── Contents.json     # iOS Asset Catalog metadata
-    ├── AppIcon-*.png     # Various iOS icon sizes
+    ├── Contents.json
+    ├── AppIcon-*.png
     └── ...
 ```
 

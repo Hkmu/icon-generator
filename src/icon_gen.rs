@@ -26,10 +26,9 @@ pub struct Args {
     pub input: PathBuf,
     pub output: PathBuf,
     pub png: Option<Vec<u32>>,
-    pub ico_only: bool,
-    pub icns_only: bool,
     pub desktop_only: bool,
     pub mobile_only: bool,
+    pub tauri_desktop: bool,
     pub windows: bool,
     pub macos: bool,
     pub linux: bool,
@@ -165,13 +164,14 @@ pub fn generate_icons(args: Args) -> Result<()> {
     let should_generate_macos = should_invoke_macos_writer(&args, has_platform_flags);
 
     // Generate icons based on options
-    if args.icns_only {
-        // Only macOS icons
+    if args.tauri_desktop {
+        // Generate Tauri desktop icons (requires Windows, macOS, Linux icons first)
+        generate_ico(&source, &args.output, args.dev_mode, &args.dev_bug)?;
         if should_generate_macos {
             generate_icns(&source, &args.output, args.dev_mode, &args.dev_bug)?;
         }
-    } else if args.ico_only {
-        generate_ico(&source, &args.output, args.dev_mode, &args.dev_bug)?;
+        generate_linux_icons(&source, &args.output, args.dev_mode, &args.dev_bug)?;
+        generate_tauri_desktop_icons(&source, &args.output, args.dev_mode, &args.dev_bug)?;
     } else if args.desktop_only {
         generate_desktop_only(&source, &args, should_generate_macos)?;
     } else if args.mobile_only {
@@ -205,12 +205,7 @@ fn should_invoke_ios_writer(args: &Args, has_platform_flags: bool) -> bool {
     }
 
     // If no platform flags are set (default case - generate_all)
-    if !has_platform_flags
-        && !args.icns_only
-        && !args.ico_only
-        && !args.desktop_only
-        && !args.mobile_only
-    {
+    if !has_platform_flags && !args.desktop_only && !args.mobile_only && !args.tauri_desktop {
         return true;
     }
 
@@ -223,15 +218,10 @@ fn should_invoke_ios_writer(args: &Args, has_platform_flags: bool) -> bool {
 }
 
 /// Determine when the macOS writer should be invoked
-/// Only invoke when macOS icons are produced (icns_only, macos, desktop_only, default)
+/// Only invoke when macOS icons are produced (macos, desktop_only, tauri_desktop, default)
 fn should_invoke_macos_writer(args: &Args, has_platform_flags: bool) -> bool {
     // If specific macOS flag is set
     if args.macos {
-        return true;
-    }
-
-    // If icns_only is set
-    if args.icns_only {
         return true;
     }
 
@@ -240,13 +230,13 @@ fn should_invoke_macos_writer(args: &Args, has_platform_flags: bool) -> bool {
         return true;
     }
 
+    // If tauri_desktop is set
+    if args.tauri_desktop {
+        return true;
+    }
+
     // If no platform flags are set (default case - generate_all)
-    if !has_platform_flags
-        && !args.icns_only
-        && !args.ico_only
-        && !args.desktop_only
-        && !args.mobile_only
-    {
+    if !has_platform_flags && !args.desktop_only && !args.mobile_only && !args.tauri_desktop {
         return true;
     }
 
@@ -270,6 +260,7 @@ fn generate_all(
         }
 
         generate_linux_icons(source, &args.output, args.dev_mode, &args.dev_bug)?;
+        generate_tauri_desktop_icons(source, &args.output, args.dev_mode, &args.dev_bug)?;
         generate_mobile(source, args, should_generate_ios)?;
     }
 
@@ -291,6 +282,7 @@ fn generate_desktop_only(
         }
 
         generate_linux_icons(source, &args.output, args.dev_mode, &args.dev_bug)?;
+        generate_tauri_desktop_icons(source, &args.output, args.dev_mode, &args.dev_bug)?;
     }
     Ok(())
 }
@@ -310,6 +302,8 @@ fn generate_platforms(
     should_generate_ios: bool,
     should_generate_macos: bool,
 ) -> Result<()> {
+    let has_desktop_platform = args.windows || args.macos || args.linux;
+
     if args.windows {
         generate_ico(source, &args.output, args.dev_mode, &args.dev_bug)?;
     }
@@ -324,6 +318,11 @@ fn generate_platforms(
         } else {
             generate_linux_icons(source, &args.output, args.dev_mode, &args.dev_bug)?;
         }
+    }
+
+    // Generate tauri-desktop icons when any desktop platform is enabled
+    if has_desktop_platform {
+        generate_tauri_desktop_icons(source, &args.output, args.dev_mode, &args.dev_bug)?;
     }
 
     if args.android {
@@ -349,7 +348,10 @@ fn generate_ico(
     dev_mode: bool,
     dev_bug: &str,
 ) -> Result<()> {
-    println!("Generating icon.ico...");
+    let windows_dir = out_dir.join("windows");
+    create_dir_all(&windows_dir)?;
+
+    println!("Generating windows/icon.ico...");
     let mut frames = Vec::new();
 
     // Common ICO sizes
@@ -383,12 +385,12 @@ fn generate_ico(
         }
     }
 
-    let mut out_file = BufWriter::new(File::create(out_dir.join("icon.ico"))?);
+    let mut out_file = BufWriter::new(File::create(windows_dir.join("icon.ico"))?);
     let encoder = IcoEncoder::new(&mut out_file);
     encoder.encode_images(&frames)?;
     out_file.flush()?;
 
-    println!("✓ Generated icon.ico");
+    println!("✓ Generated windows/icon.ico");
     Ok(())
 }
 
@@ -398,7 +400,10 @@ fn generate_icns(
     dev_mode: bool,
     dev_bug: &str,
 ) -> Result<()> {
-    println!("Generating icon.icns...");
+    let macos_dir = out_dir.join("macos");
+    create_dir_all(&macos_dir)?;
+
+    println!("Generating macos/icon.icns...");
     let icns_json = r#"
     {
       "16x16": { "size": 16, "ostype": "is32" },
@@ -443,15 +448,15 @@ fn generate_icns(
             .with_context(|| format!("Can't add {name} to Icns Family"))?;
     }
 
-    let mut out_file = BufWriter::new(File::create(out_dir.join("icon.icns"))?);
+    let mut out_file = BufWriter::new(File::create(macos_dir.join("icon.icns"))?);
     family.write(&mut out_file)?;
     out_file.flush()?;
 
-    println!("✓ Generated icon.icns");
+    println!("✓ Generated macos/icon.icns");
 
     // Step 3: Generate Contents.json for macOS
     let macos_images = build_macos_contents_json(&entries)?;
-    write_macos_contents_json(out_dir, macos_images)?;
+    write_macos_contents_json(&macos_dir, macos_images)?;
 
     Ok(())
 }
@@ -479,7 +484,10 @@ fn generate_linux_icons(
     dev_mode: bool,
     dev_bug: &str,
 ) -> Result<()> {
-    println!("Generating Linux desktop icons...");
+    let linux_dir = out_dir.join("linux");
+    create_dir_all(&linux_dir)?;
+
+    println!("Generating linux desktop icons...");
     let desktop_sizes = [32, 64, 128, 256, 512];
     for size in desktop_sizes {
         let filename = if size == 512 {
@@ -489,10 +497,58 @@ fn generate_linux_icons(
         };
 
         let resized = source.resize_exact(size, size, FilterType::Lanczos3);
-        let output_path = out_dir.join(&filename);
+        let output_path = linux_dir.join(&filename);
         save_png(&resized, &output_path, dev_mode, dev_bug)?;
-        println!("  ✓ Generated {filename}");
+        println!("  ✓ Generated linux/{filename}");
     }
+    Ok(())
+}
+
+/// Generate Tauri desktop icons in a tauri-desktop/ directory
+/// Contains the specific files needed for Tauri's src-tauri/icons folder
+fn generate_tauri_desktop_icons(
+    source: &DynamicImage,
+    out_dir: &Path,
+    dev_mode: bool,
+    dev_bug: &str,
+) -> Result<()> {
+    let tauri_dir = out_dir.join("tauri-desktop");
+    create_dir_all(&tauri_dir)?;
+
+    println!("Generating tauri-desktop icons...");
+
+    // Generate 32x32.png
+    let resized_32 = source.resize_exact(32, 32, FilterType::Lanczos3);
+    let output_path = tauri_dir.join("32x32.png");
+    save_png(&resized_32, &output_path, dev_mode, dev_bug)?;
+    println!("  ✓ Generated tauri-desktop/32x32.png");
+
+    // Generate 128x128.png
+    let resized_128 = source.resize_exact(128, 128, FilterType::Lanczos3);
+    let output_path = tauri_dir.join("128x128.png");
+    save_png(&resized_128, &output_path, dev_mode, dev_bug)?;
+    println!("  ✓ Generated tauri-desktop/128x128.png");
+
+    // Generate 128x128@2x.png (256x256)
+    let resized_256 = source.resize_exact(256, 256, FilterType::Lanczos3);
+    let output_path = tauri_dir.join("128x128@2x.png");
+    save_png(&resized_256, &output_path, dev_mode, dev_bug)?;
+    println!("  ✓ Generated tauri-desktop/128x128@2x.png");
+
+    // Generate icon.ico (copy from windows directory)
+    let windows_ico = out_dir.join("windows").join("icon.ico");
+    if windows_ico.exists() {
+        std::fs::copy(&windows_ico, tauri_dir.join("icon.ico"))?;
+        println!("  ✓ Generated tauri-desktop/icon.ico");
+    }
+
+    // Generate icon.icns (copy from macos directory)
+    let macos_icns = out_dir.join("macos").join("icon.icns");
+    if macos_icns.exists() {
+        std::fs::copy(&macos_icns, tauri_dir.join("icon.icns"))?;
+        println!("  ✓ Generated tauri-desktop/icon.icns");
+    }
+
     Ok(())
 }
 

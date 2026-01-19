@@ -1,15 +1,17 @@
 # Icon Generator CLI
 
-A cross-platform CLI tool for generating icons in various formats from a single source image. This tool creates icons for Windows (ICO), macOS (ICNS), Linux (PNG), Android, and iOS platforms.
+A cross-platform CLI tool for generating icons in various formats from a single source image. This tool creates icons for Windows (ICO), macOS (ICNS), Linux (PNG), Android, iOS, and Tauri platforms.
 
 ![](icon-generator-logo.png)
 
 ## Features
 
-- **Multi-platform icon generation**: Generates icons for Windows, macOS, Linux, Android, and iOS
+- **Multi-platform icon generation**: Generates icons for Windows, macOS, Linux, Android, iOS, and Tauri
+- **Platform-specific directories**: Each platform gets its own dedicated subdirectory for easy drag-and-drop
 - **Multiple formats**: ICO, ICNS, and PNG formats with appropriate sizes
 - **Customizable sizes**: Generate custom PNG sizes as needed
 - **Mobile platform support**: Automatically generates Android and iOS app icons
+- **Tauri support**: Dedicated `tauri-desktop` folder for Tauri projects
 - **Background color support**: Add background colors for iOS icons
 - **Development badge support**: Add a "DEV" badge overlay to icons for development builds
 - **Apple Asset Catalog support**: Automatic generation of `Contents.json` for iOS and macOS
@@ -50,11 +52,8 @@ This will generate all icon formats in a directory named `icon-generator-input-i
 # Specify output directory
 icon-gen input-image.png -o /path/to/output
 
-# Generate only Windows ICO format
-icon-gen input-image.png --ico-only
-
-# Generate only macOS ICNS format
-icon-gen input-image.png --icns-only
+# Generate only Tauri desktop icons (recommended for Tauri projects)
+icon-gen input-image.png --tauri-desktop
 
 # Generate custom PNG sizes only
 icon-gen input-image.png -p 16,32,64,128,256
@@ -93,10 +92,9 @@ Arguments:
 Options:
   -o, --output <DIR>           Output directory (default: icon-generator-{source-name})
   -p, --png <SIZES>            Custom PNG icon sizes to generate. When set, only these sizes are generated
-      --ico-only               Generate only ICO format (Windows icons)
-      --icns-only              Generate only ICNS format (macOS icons)
       --desktop-only           Generate only desktop platform icons (Windows, macOS, Linux)
       --mobile-only            Generate only mobile platform icons (Android, iOS)
+      --tauri-desktop          Generate Tauri desktop icons (tauri-desktop folder with icons for src-tauri/icons)
       --windows                Generate icons for Windows platform
       --macos                  Generate icons for macOS platform
       --linux                  Generate icons for Linux/Desktop platform
@@ -112,20 +110,29 @@ Options:
 
 ### Windows (ICO)
 
+- **Directory**: `windows/`
 - **File**: `icon.ico`
 - **Sizes**: 16×16, 24×24, 32×32, 48×48, 64×64, 256×256
 - **Format**: Multi-layer ICO file with PNG compression for 256×256
 
 ### macOS (ICNS)
 
-- **File**: `icon.icns`
+- **Directory**: `macos/`
+- **Files**: `icon.icns`, `Contents.json`
 - **Sizes**: 16×16, 32×32, 128×128, 256×256, 512×512, 1024×1024 (including @2x variants)
 - **Format**: Apple ICNS format
 
 ### Linux/Desktop (PNG)
 
+- **Directory**: `linux/`
 - **Files**: `32x32.png`, `64x64.png`, `128x128.png`, `256x256.png`, `icon.png` (512×512)
 - **Format**: PNG with transparency
+
+### Tauri Desktop
+
+- **Directory**: `tauri-desktop/`
+- **Files**: `32x32.png`, `128x128.png`, `128x128@2x.png`, `icon.ico`, `icon.icns`
+- **Purpose**: Ready-to-use icons for Tauri's `src-tauri/icons` folder
 
 ### Android
 
@@ -258,6 +265,16 @@ icon-gen app-icon.png --windows --macos --linux
 icon-gen app-icon.png --linux -p 16,24,32,48,64,128,256
 ```
 
+### Generate icons for Tauri projects
+
+```bash
+# Generate only Tauri desktop icons (recommended for Tauri)
+icon-gen app-icon.png --tauri-desktop
+
+# The tauri-desktop folder can be directly copied to src-tauri/icons
+# Simply drag and drop the contents into your Tauri project
+```
+
 ### Generate icons with development badge
 
 ```bash
@@ -280,14 +297,23 @@ When generating all formats, the output directory structure will be:
 
 ```
 {output}/                  # Default: icon-generator-{source-name}/
-├── icon.ico              # Windows ICO
-├── icon.icns             # macOS ICNS
-├── Contents.json         # macOS Asset Catalog metadata
-├── 32x32.png             # Linux desktop
-├── 64x64.png
-├── 128x128.png
-├── 256x256.png
-├── icon.png              # 512x512
+├── windows/              # Windows icons
+│   └── icon.ico
+├── macos/                # macOS icons
+│   ├── icon.icns
+│   └── Contents.json     # macOS Asset Catalog metadata
+├── linux/                # Linux desktop icons
+│   ├── 32x32.png
+│   ├── 64x64.png
+│   ├── 128x128.png
+│   ├── 256x256.png
+│   └── icon.png          # 512x512
+├── tauri-desktop/        # Tauri desktop icons
+│   ├── 32x32.png
+│   ├── 128x128.png
+│   ├── 128x128@2x.png
+│   ├── icon.ico
+│   └── icon.icns
 ├── android/              # Android icons
 │   ├── mipmap-mdpi/
 │   │   └── ic_launcher.png

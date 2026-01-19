@@ -23,14 +23,6 @@ struct Args {
     #[clap(short, long, value_delimiter = ',', value_name = "SIZES")]
     png: Option<Vec<u32>>,
 
-    /// Generate only ICO format (Windows icons)
-    #[clap(long)]
-    ico_only: bool,
-
-    /// Generate only ICNS format (macOS icons)
-    #[clap(long)]
-    icns_only: bool,
-
     /// Generate only desktop platform icons (Windows, macOS, Linux)
     #[clap(long)]
     desktop_only: bool,
@@ -38,6 +30,10 @@ struct Args {
     /// Generate only mobile platform icons (Android, iOS)
     #[clap(long)]
     mobile_only: bool,
+
+    /// Generate Tauri desktop icons (tauri-desktop folder with icons for src-tauri/icons)
+    #[clap(long)]
+    tauri_desktop: bool,
 
     /// Generate icons for Windows platform
     #[clap(long)]
@@ -101,10 +97,9 @@ fn main() -> Result<()> {
         input: args.input,
         output,
         png: args.png,
-        ico_only: args.ico_only,
-        icns_only: args.icns_only,
         desktop_only: args.desktop_only,
         mobile_only: args.mobile_only,
+        tauri_desktop: args.tauri_desktop,
         windows: args.windows,
         macos: args.macos,
         linux: args.linux,
