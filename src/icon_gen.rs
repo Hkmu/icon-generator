@@ -541,24 +541,30 @@ fn generate_ios_icons(
     // Track produced files for Contents.json
     let mut images: Vec<ImageEntry> = Vec::new();
 
+    // Xcode AppIcon.appiconset slots - includes all optional slots
+    // Each entry: (base_size, multipliers, idiom, optional size_override, pixel_size_override)
     let sizes = [
-        (20, vec![1, 2, 3]),
-        (29, vec![1, 2, 3]),
-        (40, vec![1, 2, 3]),
-        (60, vec![2, 3]),
-        (76, vec![1, 2]),
-        (83, vec![2]), // 83.5 -> 83
-        (1024, vec![1]),
+        // iPhone App icons
+        (29, vec![2, 3], "iphone", None, None), // iPhone: 29x29@2x, @3x (Settings, etc.)
+        (40, vec![2, 3], "iphone", None, None), // iPhone: 40x40@2x, @3x (Spotlight)
+        (60, vec![2, 3], "iphone", None, None), // iPhone: 60x60@2x, @3x (App icon)
+        // iPhone Notification icons (optional slot)
+        (20, vec![2, 3], "iphone", None, None), // iPhone: 20x20@2x, @3x (Notifications)
+        // iPad App icons
+        (29, vec![1, 2], "ipad", None, None),   // iPad: 29x29@1x, @2x (Settings, etc.)
+        (40, vec![1, 2], "ipad", None, None),   // iPad: 40x40@1x, @2x (Spotlight)
+        (76, vec![1, 2], "ipad", None, None),   // iPad: 76x76@1x, @2x (App icon)
+        // iPad Notification icons (optional slot)
+        (20, vec![2], "ipad", None, None),      // iPad: 20x20@2x (Notifications)
+        // iPad Pro 12.9" App icon (optional slot) - 83.5pt @2x = 167px
+        (83, vec![2], "ipad", Some("83.5x83.5"), Some(167)),
     ];
 
-    for (base_size, multipliers) in sizes {
+    for (base_size, multipliers, idiom, size_override, pixel_size_override) in sizes {
         for multiplier in multipliers {
-            let actual_size = base_size * multiplier;
-            let filename = if base_size == 1024 {
-                "AppIcon-1024x1024.png".to_string()
-            } else {
-                format!("AppIcon-{base_size}x{base_size}@{multiplier}x.png")
-            };
+            // Use pixel_size_override if provided (for 83.5pt -> 167px case), otherwise calculate
+            let actual_size = pixel_size_override.unwrap_or(base_size * multiplier);
+            let filename = format!("AppIcon-{base_size}x{base_size}@{multiplier}x.png");
 
             let mut resized = source.resize_exact(actual_size, actual_size, FilterType::Lanczos3);
 
@@ -571,39 +577,45 @@ fn generate_ios_icons(
             save_png(&resized, &output_path, dev_mode, dev_bug)?;
             println!("  ✓ Generated ios/{filename}");
 
-            // Immediately after PNG is written, create ImageEntry
-            let expected_size = if base_size == 1024 {
-                1024
-            } else {
-                base_size * multiplier
-            };
-            let idiom = determine_ios_idiom(base_size, multiplier);
-            let size_str = if base_size == 83 {
-                "83.5x83.5".to_string() // Special case for 83.5
-            } else {
-                format!("{base_size}x{base_size}")
-            };
+            // Create ImageEntry for Contents.json (no role field for standard AppIcon)
+            let size_str = size_override.unwrap_or(&format!("{base_size}x{base_size}")).to_string();
 
             let mut image_entry = ImageEntry::new_app_icon(
                 filename,
-                idiom,
+                idiom.to_string(),
                 size_str,
                 format!("{multiplier}x"),
-                determine_ios_role(base_size),
+                None, // No role for standard Xcode AppIcon
             );
 
-            image_entry.expected_size = Some(expected_size.to_string());
-
-            // Add watch subtypes if needed
-            if let Some(subtype) = determine_watch_subtype(base_size, multiplier) {
-                image_entry = image_entry.with_subtype(subtype);
-            }
+            image_entry.expected_size = Some(actual_size.to_string());
 
             images.push(image_entry);
         }
     }
 
-    // Write Contents.json
+    // Generate 1024pt App Store marketing icon and add to Contents.json
+    let marketing_filename = "AppIcon-1024x1024.png";
+    let marketing_size = 1024;
+    let mut marketing_icon = source.resize_exact(marketing_size, marketing_size, FilterType::Lanczos3);
+    let mut marketing_bg = ImageBuffer::from_fn(marketing_size, marketing_size, |_, _| bg_color);
+    image::imageops::overlay(&mut marketing_bg, &marketing_icon, 0, 0);
+    marketing_icon = DynamicImage::ImageRgba8(marketing_bg);
+    let marketing_path = ios_dir.join(marketing_filename);
+    save_png(&marketing_icon, &marketing_path, dev_mode, dev_bug)?;
+    println!("  ✓ Generated ios/{} (for App Store)", marketing_filename);
+
+    // Add marketing icon entry to Contents.json
+    let marketing_entry = ImageEntry::new_app_icon(
+        marketing_filename.to_string(),
+        "ios-marketing".to_string(),
+        "1024x1024".to_string(),
+        "1x".to_string(),
+        None,
+    );
+    images.push(marketing_entry);
+
+    // Write Contents.json (now includes all 17 icons)
     write_contents_json(&ios_dir, images)?;
 
     Ok(())
@@ -633,35 +645,6 @@ fn write_png<W: Write>(image_data: &[u8], w: W, size: u32) -> Result<()> {
     let encoder = PngEncoder::new_with_quality(w, CompressionType::Best, PngFilterType::Adaptive);
     encoder.write_image(image_data, size, size, ColorType::Rgba8)?;
     Ok(())
-}
-
-/// Determine the appropriate iOS idiom based on size and multiplier
-fn determine_ios_idiom(base_size: u32, _multiplier: u32) -> String {
-    match base_size {
-        1024 => "ios-marketing".to_string(),
-        20 | 29 | 40 | 60 => "iphone".to_string(), // iPhone sizes
-        76 | 83 => "ipad".to_string(),             // iPad sizes
-        _ => "universal".to_string(),
-    }
-}
-
-/// Determine the role for an iOS icon based on the base size
-fn determine_ios_role(base_size: u32) -> Option<String> {
-    match base_size {
-        20 => Some("notificationCenter".to_string()),
-        29 => Some("companionSettings".to_string()),
-        40 => Some("spotlight".to_string()),
-        60 | 76 => Some("appLauncher".to_string()),
-        83 => Some("appLauncher".to_string()), // iPad Pro app launcher
-        _ => None,
-    }
-}
-
-/// Determine watch subtype (not applicable for our current simple sizes)
-fn determine_watch_subtype(_base_size: u32, _multiplier: u32) -> Option<String> {
-    // For now, we don't generate watch-specific subtypes in our simplified generation
-    // This would be expanded based on the comprehensive Contents.json example
-    None
 }
 
 /// Write Contents.json file with the provided image entries
