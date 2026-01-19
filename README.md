@@ -2,6 +2,8 @@
 
 A cross-platform CLI tool for generating icons in various formats from a single source image. This tool creates icons for Windows (ICO), macOS (ICNS), Linux (PNG), Android, and iOS platforms.
 
+![](icon-generator-logo.png)
+
 ## Features
 
 - **Multi-platform icon generation**: Generates icons for Windows, macOS, Linux, Android, and iOS
