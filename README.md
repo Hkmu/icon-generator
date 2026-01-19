@@ -42,7 +42,7 @@ Check the [Releases](https://github.com/your-repo/icon-generator/releases) page 
 icon-gen input-image.png
 ```
 
-This will generate all icon formats in the `./icons` directory.
+This will generate all icon formats in a directory named `icon-generator-input-image/` (based on the source filename).
 
 ### Advanced Usage
 
@@ -91,7 +91,7 @@ Arguments:
   <INPUT>  Path to the source icon (squared PNG file with transparency)
 
 Options:
-  -o, --output <DIR>           Output directory [default: ./icons]
+  -o, --output <DIR>           Output directory (default: icon-generator-{source-name})
   -p, --png <SIZES>            Custom PNG icon sizes to generate. When set, only these sizes are generated
       --ico-only               Generate only ICO format (Windows icons)
       --icns-only              Generate only ICNS format (macOS icons)
@@ -187,14 +187,14 @@ icon-gen source.png --dev-mode --dev-bug moth --mobile-only
 
 This tool automatically generates Apple's `Contents.json` files for both iOS and macOS platforms, making the generated icons ready for use in Xcode projects without any additional configuration.
 
-### iOS Asset Catalog (`icons/ios/Contents.json`)
+### iOS Asset Catalog (`{output}/ios/Contents.json`)
 
 - **Purpose**: Defines metadata for iOS app icons including sizes, scales, idioms, and roles
 - **Compatibility**: Works with all iOS devices (iPhone, iPad, and iOS Marketing)
 - **Roles**: Includes proper roles for notification center, spotlight, app launcher, and companion settings
 - **No Xcode Post-processing**: Icons are immediately ready for use in iOS projects
 
-### macOS Asset Catalog (`icons/Contents.json`)
+### macOS Asset Catalog (`{output}/Contents.json`)
 
 - **Purpose**: Defines metadata for macOS app icons with proper scaling and size information
 - **Compatibility**: Supports all macOS icon sizes from 16×16 to 1024×1024 with @1x and @2x variants
@@ -279,7 +279,7 @@ icon-gen app-icon.png --dev-mode --dev-bug ladybug --android --ios
 When generating all formats, the output directory structure will be:
 
 ```
-icons/
+{output}/                  # Default: icon-generator-{source-name}/
 ├── icon.ico              # Windows ICO
 ├── icon.icns             # macOS ICNS
 ├── Contents.json         # macOS Asset Catalog metadata

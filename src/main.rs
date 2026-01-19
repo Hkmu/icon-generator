@@ -16,8 +16,8 @@ struct Args {
     input: PathBuf,
 
     /// Output directory.
-    #[clap(short, long, value_name = "DIR", default_value = "./icons")]
-    output: PathBuf,
+    #[clap(short, long, value_name = "DIR")]
+    output: Option<PathBuf>,
 
     /// Custom PNG icon sizes to generate. When set, only these sizes are generated.
     #[clap(short, long, value_delimiter = ',', value_name = "SIZES")]
@@ -87,10 +87,19 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
 
+    // Compute default output path from input filename if not provided
+    let output = args.output.unwrap_or_else(|| {
+        let source_stem = args.input
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("icon");
+        PathBuf::from(format!("icon-generator-{}", source_stem))
+    });
+
     // Convert to icon_gen::Args
     let icon_args = icon_gen::Args {
         input: args.input,
-        output: args.output,
+        output,
         png: args.png,
         ico_only: args.ico_only,
         icns_only: args.icns_only,
