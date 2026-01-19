@@ -625,9 +625,27 @@ fn generate_ios_icons(
             let mut resized = source.resize_exact(actual_size, actual_size, FilterType::Lanczos3);
 
             // Add background color for iOS icons
-            let mut bg_img = ImageBuffer::from_fn(actual_size, actual_size, |_, _| bg_color);
-            image::imageops::overlay(&mut bg_img, &resized, 0, 0);
-            resized = DynamicImage::ImageRgba8(bg_img);
+            // We need to blend the source image with background color and force opacity
+            let resized_rgba = resized.to_rgba8();
+            let final_img = ImageBuffer::from_fn(actual_size, actual_size, |x, y| {
+                let src_pixel = resized_rgba.get_pixel(x, y);
+                let src_alpha = src_pixel[3] as f32 / 255.0;
+
+                if src_alpha == 0.0 {
+                    // Fully transparent - use background color
+                    bg_color
+                } else {
+                    // Blend source with background and force opacity
+                    let inv_alpha = 1.0 - src_alpha;
+                    Rgba([
+                        ((src_alpha * src_pixel[0] as f32 + inv_alpha * bg_color[0] as f32)) as u8,
+                        ((src_alpha * src_pixel[1] as f32 + inv_alpha * bg_color[1] as f32)) as u8,
+                        ((src_alpha * src_pixel[2] as f32 + inv_alpha * bg_color[2] as f32)) as u8,
+                        255, // Force full opacity for iOS
+                    ])
+                }
+            });
+            resized = DynamicImage::ImageRgba8(final_img);
 
             let output_path = ios_dir.join(&filename);
             save_png(&resized, &output_path, dev_mode, dev_bug)?;
@@ -653,12 +671,32 @@ fn generate_ios_icons(
     // Generate 1024pt App Store marketing icon and add to Contents.json
     let marketing_filename = "AppIcon-1024x1024.png";
     let marketing_size = 1024;
-    let mut marketing_icon = source.resize_exact(marketing_size, marketing_size, FilterType::Lanczos3);
-    let mut marketing_bg = ImageBuffer::from_fn(marketing_size, marketing_size, |_, _| bg_color);
-    image::imageops::overlay(&mut marketing_bg, &marketing_icon, 0, 0);
-    marketing_icon = DynamicImage::ImageRgba8(marketing_bg);
+    let marketing_icon = source.resize_exact(marketing_size, marketing_size, FilterType::Lanczos3);
+
+    // Apply background color using same blend logic
+    let marketing_rgba = marketing_icon.to_rgba8();
+    let marketing_final = ImageBuffer::from_fn(marketing_size, marketing_size, |x, y| {
+        let src_pixel = marketing_rgba.get_pixel(x, y);
+        let src_alpha = src_pixel[3] as f32 / 255.0;
+
+        if src_alpha == 0.0 {
+            // Fully transparent - use background color
+            bg_color
+        } else {
+            // Blend source with background and force opacity
+            let inv_alpha = 1.0 - src_alpha;
+            Rgba([
+                ((src_alpha * src_pixel[0] as f32 + inv_alpha * bg_color[0] as f32)) as u8,
+                ((src_alpha * src_pixel[1] as f32 + inv_alpha * bg_color[1] as f32)) as u8,
+                ((src_alpha * src_pixel[2] as f32 + inv_alpha * bg_color[2] as f32)) as u8,
+                255, // Force full opacity for iOS
+            ])
+        }
+    });
+
+    let marketing_icon_final = DynamicImage::ImageRgba8(marketing_final);
     let marketing_path = ios_dir.join(marketing_filename);
-    save_png(&marketing_icon, &marketing_path, dev_mode, dev_bug)?;
+    save_png(&marketing_icon_final, &marketing_path, dev_mode, dev_bug)?;
     println!("  ✓ Generated ios/{} (for App Store)", marketing_filename);
 
     // Add marketing icon entry to Contents.json

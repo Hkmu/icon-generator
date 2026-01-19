@@ -2,8 +2,6 @@
 
 A cross-platform CLI tool for generating icons in various formats from a single source image. This tool creates icons for Windows (ICO), macOS (ICNS), Linux (PNG), Android, iOS, and Tauri platforms.
 
-![](icon-generator-logo.png)
-
 ## Features
 
 - **Multi-platform icon generation**: Generates icons for Windows, macOS, Linux, Android, iOS, and Tauri
@@ -165,6 +163,8 @@ The badge uses charming bug images (moth, cockroach, ladybug, spider, or caterpi
 - **`ladybug`**: Ladybug with fixed orientation
 - **`spider`**: Spider with fixed orientation
 - **`caterpillar`**: Caterpillar with fixed orientation
+
+![](images/bugs.png)
 
 ### Usage Examples
 
