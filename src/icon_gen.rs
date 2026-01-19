@@ -9,7 +9,6 @@ use image::{
     imageops::FilterType,
     ColorType, DynamicImage, ImageBuffer, ImageEncoder, Rgba,
 };
-use rand::Rng;
 use serde::Deserialize;
 use std::{
     collections::HashMap,
@@ -360,12 +359,7 @@ fn generate_ico(
 
         // Apply dev badge before encoding
         if dev_mode {
-            let angle = if dev_bug == "moth" {
-                rand::thread_rng().gen_range(0.0..360.0)
-            } else {
-                0.0
-            };
-            apply_dev_badge_with_bug(&mut resized, dev_bug, angle)?;
+            apply_dev_badge_with_bug(&mut resized, dev_bug, 0.0)?;
         }
 
         let rgba_image = resized.to_rgba8();
@@ -427,12 +421,7 @@ fn generate_icns(
 
         // Apply dev badge before encoding
         if dev_mode {
-            let angle = if dev_bug == "moth" {
-                rand::thread_rng().gen_range(0.0..360.0)
-            } else {
-                0.0
-            };
-            apply_dev_badge_with_bug(&mut image, dev_bug, angle)?;
+            apply_dev_badge_with_bug(&mut image, dev_bug, 0.0)?;
         }
 
         let mut buf = Vec::new();
@@ -720,12 +709,7 @@ fn save_png(image: &DynamicImage, path: &Path, dev_mode: bool, dev_bug: &str) ->
 
     // Apply dev badge if in dev mode
     if dev_mode {
-        let angle = if dev_bug == "moth" {
-            rand::thread_rng().gen_range(0.0..360.0)
-        } else {
-            0.0
-        };
-        apply_dev_badge_with_bug(&mut img, dev_bug, angle)?;
+        apply_dev_badge_with_bug(&mut img, dev_bug, 0.0)?;
     }
 
     let mut file = std::fs::File::create(path).context("Failed to create PNG file")?;
