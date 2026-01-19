@@ -8,7 +8,10 @@ mod icon_gen;
 #[derive(Debug, Parser)]
 #[clap(
     name = "icon-gen",
-    about = "Generate various icons for all major platforms"
+    version = env!("CARGO_PKG_VERSION"),
+    about = "Generate various icons for all major platforms",
+    long_about = "A cross-platform CLI tool for generating icons in various formats from a single source image. \
+Creates icons for Windows (ICO), macOS (ICNS), Linux (PNG), Android, iOS, and Tauri platforms."
 )]
 struct Args {
     /// Path to the source icon (squared PNG or SVG file with transparency).
